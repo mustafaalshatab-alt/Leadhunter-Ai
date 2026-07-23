@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { join } from "path";
 import health from "./routes/health";
+import scans from "./routes/scans";
 import { getDb } from "./db";
 
 const app = new Hono();
@@ -14,6 +15,7 @@ getDb();
 
 // API routes
 app.route("/api/health", health);
+app.route("/api/scans", scans);
 
 // In production, serve static frontend from client/dist/
 if (isProduction) {

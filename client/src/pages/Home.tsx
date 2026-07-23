@@ -97,12 +97,22 @@ function hasPreloadedProvinces(country: string): boolean {
 
 // ----- Component -----
 
+type ScanStatus = "idle" | "scanning" | "success" | "error";
+
 export default function Home() {
   const [country, setCountry] = useState<string>("United States");
   const [province, setProvince] = useState<string>("");
   const [city, setCity] = useState("");
   const [category, setCategory] = useState<string>("");
   const [otherCategory, setOtherCategory] = useState("");
+
+  const [scanStatus, setScanStatus] = useState<ScanStatus>("idle");
+  const [scanResult, setScanResult] = useState<{
+    scanId: number;
+    businessCount: number;
+    message: string;
+  } | null>(null);
+  const [scanError, setScanError] = useState<string | null>(null);
 
   const provinces = useMemo(() => PROVINCES_BY_COUNTRY[country] ?? [], [country]);
   const showProvinceDropdown = hasPreloadedProvinces(country);
@@ -114,9 +124,12 @@ export default function Home() {
   };
 
   const effectiveCategory = category === "Other" ? otherCategory.trim() : category;
-  const canScan = city.trim().length > 0 && effectiveCategory.length > 0;
+  const canScan =
+    city.trim().length > 0 &&
+    effectiveCategory.length > 0 &&
+    scanStatus !== "scanning";
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canScan) return;
 
@@ -127,26 +140,29 @@ export default function Home() {
       category: effectiveCategory,
     };
 
-    console.log("Scan request:", payload);
+    setScanStatus("scanning");
+    setScanResult(null);
+    setScanError(null);
 
-    // POST to /api/scans — endpoint doesn't exist yet, so we log + alert
-    fetch("/api/scans", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        console.log("Scan created:", data);
-        alert(`Scan started for ${effectiveCategory} businesses in ${city}, ${province || country}!`);
-      })
-      .catch((err) => {
-        console.warn("POST /api/scans not available yet:", err);
-        alert(`Scan started for ${effectiveCategory} businesses in ${city}, ${province || country}!\n\n(Backend endpoint not yet connected — this is a demo.)`);
+    try {
+      const res = await fetch("/api/scans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error ?? `HTTP ${res.status}`);
+      }
+
+      setScanResult(data);
+      setScanStatus("success");
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : "Unknown error");
+      setScanStatus("error");
+    }
   };
 
   return (
@@ -312,8 +328,36 @@ export default function Home() {
                        enabled:bg-amber-500 enabled:text-gray-950 enabled:hover:bg-amber-400 enabled:active:scale-[0.98]
                        disabled:cursor-not-allowed disabled:bg-gray-800 disabled:text-gray-600"
           >
-            Scan City
+            {scanStatus === "scanning" ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Scanning {city || "City"}...
+              </span>
+            ) : (
+              "Scan City"
+            )}
           </button>
+
+          {/* Success message */}
+          {scanStatus === "success" && scanResult && (
+            <div className="mt-4 rounded-lg border border-green-800 bg-green-950/50 px-4 py-3 text-sm text-green-300">
+              <p className="font-semibold">✅ {scanResult.message}</p>
+              <p className="mt-1 text-green-400/70">
+                Scan ID: {scanResult.scanId} &middot; {scanResult.businessCount} businesses discovered
+              </p>
+            </div>
+          )}
+
+          {/* Error message */}
+          {scanStatus === "error" && scanError && (
+            <div className="mt-4 rounded-lg border border-red-800 bg-red-950/50 px-4 py-3 text-sm text-red-300">
+              <p className="font-semibold">❌ Scan failed</p>
+              <p className="mt-1 text-red-400/70">{scanError}</p>
+            </div>
+          )}
         </form>
       </div>
     </div>

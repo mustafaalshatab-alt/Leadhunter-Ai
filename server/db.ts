@@ -24,6 +24,7 @@ function runMigrations(db: Database): void {
       country TEXT NOT NULL,
       category TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
+      business_count INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -34,6 +35,10 @@ function runMigrations(db: Database): void {
       name TEXT NOT NULL,
       place_id TEXT,
       website_url TEXT,
+      phone TEXT,
+      address TEXT,
+      rating REAL DEFAULT 0,
+      review_count INTEGER DEFAULT 0,
       lead_score REAL DEFAULT 0,
       analysis_json TEXT DEFAULT '{}',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -44,5 +49,26 @@ function runMigrations(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_scans_status ON scans(status);
   `);
 
+  // Migration: add columns that may be missing from older DBs
+  migrateAddColumn(db, "businesses", "phone", "TEXT");
+  migrateAddColumn(db, "businesses", "address", "TEXT");
+  migrateAddColumn(db, "businesses", "rating", "REAL DEFAULT 0");
+  migrateAddColumn(db, "businesses", "review_count", "INTEGER DEFAULT 0");
+  migrateAddColumn(db, "scans", "business_count", "INTEGER NOT NULL DEFAULT 0");
+
   console.log("📦 Database ready — tables migrated.");
+}
+
+/** Safely add a column if it doesn't already exist (SQLite doesn't support IF NOT EXISTS for ALTER TABLE) */
+function migrateAddColumn(
+  db: Database,
+  table: string,
+  column: string,
+  type: string
+): void {
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  } catch {
+    // Column already exists — ignore
+  }
 }
