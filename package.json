@@ -1,0 +1,11 @@
+{
+  "name": "leadhunter",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run dev.ts",
+    "build": "cd client && bun run build",
+    "start": "NODE_ENV=production LH_PORT=3000 bun run server/index.ts"
+  },
+  "workspaces": ["client", "server"]
+}
